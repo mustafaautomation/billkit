@@ -4,7 +4,9 @@ import { StatusBadge } from "@/components/status-badge"
 import { ErrorNote } from "@/components/ui-bits"
 import { Button } from "@/components/ui/button"
 import { mockPayAction, payWithCardAction } from "@/lib/actions/app"
+import { currentUser } from "@/lib/context"
 import { ActionError } from "@/lib/data/errors"
+import { isDemoRequest } from "@/lib/data/get-store"
 import { openPublicInvoice } from "@/lib/data/service"
 import { formatMoney, formatPercentFromBps } from "@/lib/domain/money"
 import { integrationMode } from "@/lib/env"
@@ -22,14 +24,15 @@ export default async function PayPage({
   const origin = await getOrigin()
   let opened: Awaited<ReturnType<typeof openPublicInvoice>>
   try {
-    opened = await openPublicInvoice(token, origin)
+    const [viewer, demo] = await Promise.all([currentUser(), isDemoRequest()])
+    opened = await openPublicInvoice(token, origin, { userId: viewer?.id ?? null, demo })
   } catch (error) {
     if (error instanceof ActionError) notFound()
     throw error
   }
-  const { invoice, client, workspace } = opened
+  const { invoice, client, workspace, preview } = opened
   const mode = integrationMode()
-  const payable = invoice.displayStatus !== "paid" && invoice.displayStatus !== "void"
+  const payable = invoice.displayStatus !== "paid" && invoice.displayStatus !== "void" && preview !== "demo"
   return (
     <main className="mx-auto max-w-2xl px-4 py-10">
       <p className="text-sm text-muted-foreground">{workspace.name}</p>
@@ -41,6 +44,16 @@ export default async function PayPage({
       {query.result === "paid" || invoice.displayStatus === "paid" ? (
         <p role="status" className="mt-4 rounded-lg bg-emerald-100 px-3 py-2 text-sm text-emerald-950">
           Payment recorded. {workspace.name} has the receipt.
+        </p>
+      ) : null}
+      {preview === "demo" ? (
+        <p role="status" className="mt-4 rounded-lg bg-muted px-3 py-2 text-sm">
+          Read-only demo. This is what the client sees; payment is turned off here.
+        </p>
+      ) : null}
+      {preview === "member" ? (
+        <p role="status" className="mt-4 rounded-lg bg-muted px-3 py-2 text-sm">
+          You are previewing the client page for {workspace.name}. Opening it here does not mark the invoice viewed.
         </p>
       ) : null}
       {query.result === "cancel" ? <p className="mt-4 text-sm text-muted-foreground">Checkout was canceled.</p> : null}

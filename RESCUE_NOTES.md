@@ -18,3 +18,15 @@ Not in this copy: files Cursor's template created and the agent never changed (e
 - README screenshots (`docs/screenshots/*.png`) re-captured from the running app (mock mode, seeded data) with a throwaway Playwright script; the repo has no screenshot script.
 
 Verified locally: `npm run typecheck` OK, `npm run lint` clean, `npm test` 13 passed, `npm run build` OK, Playwright 7 passed (against `BILLKIT_E2E=1 npm start -p 3847`), plus an ad-hoc check of reminder draft/send, PDF download (token ok / bad token 404), mock Pro upgrade, invite link and super-admin page.
+
+## Review of the reconstructed `lib/data/service.ts` (25 Nov 2026, Claude Code)
+
+Re-read every caller (`lib/actions/*`, `lib/context.ts`, all pages and routes), the Store interface, seed, migration, README rules and the Cursor thread summary (Northwind + Cedar, 12 invoices, maya/owen/leah/root, read-only demo, mock email for sent/viewed/overdue). Signatures, error messages, plan limits, roles and tenant scoping all matched. Fixed:
+
+- Payment page views: a studio member clicking "Open payment page" (or anyone arriving from `/demo`) used to mark the invoice `viewed` and send a "client viewed" notification + email, and the demo visitor could press "Confirm test payment" on a Northwind invoice. `openPublicInvoice` now takes the viewer (`userId`, `demo`) and returns `preview: "member" | "demo" | null`; previews never record a view, and the demo preview hides the payment form. `get-store` exports `isDemoRequest()` for the pay page.
+- Invoice numbering: the counter now skips numbers that already exist in the workspace (the table has `unique (workspace_id, number)`), so switching the prefix back cannot produce a duplicate.
+- Tests: `lib/data/service.test.ts` (6 tests: first view, member/demo/outsider previews, drafts hidden, numbering, demo write rejected) and an E2E check that the demo payment page cannot take a payment. `playwright.config.ts` reads an optional `E2E_PORT` (default 3847).
+
+Still inferred, not copied: overdue sweep timing (on dashboard/ledger load), notification/email wording, mock plan change/cancel semantics, token lifetimes. Reminder drafts are not plan-gated (the original `Entitlements` type has no reminder flag).
+
+Verified: typecheck OK, lint clean, `npm test` 19 passed, `next build` OK, Playwright 8 passed.

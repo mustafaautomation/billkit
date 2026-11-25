@@ -443,10 +443,24 @@ export async function acceptInvite(user: User, raw: string): Promise<string> {
 // ---------------------------------------------------------------------------
 // Public invoice page and payments
 
+export type PublicViewer = {
+  /** Signed-in user opening the page, if any. */
+  userId?: string | null
+  /** The page was opened from the read-only /demo surface. */
+  demo?: boolean
+}
+
 export async function openPublicInvoice(
   token: string,
   origin: string,
-): Promise<{ invoice: PricedInvoice; client: Client; workspace: Workspace }> {
+  viewer: PublicViewer = {},
+): Promise<{
+  invoice: PricedInvoice
+  client: Client
+  workspace: Workspace
+  /** "demo": opened from the public demo; "member": the studio previewing its own page. */
+  preview: "demo" | "member" | null
+}> {
   void origin
   const store = await getStore()
   let invoice = token ? await store.getInvoiceByToken(token) : null
@@ -457,8 +471,16 @@ export async function openPublicInvoice(
   ])
   if (!client || !workspace) throw new ActionError("Invoice not found.", "not_found")
 
+  // A studio member checking the page, or a visitor coming from the read-only
+  // demo, is not the client: neither may mark the invoice viewed.
+  let preview: "demo" | "member" | null = viewer.demo ? "demo" : null
+  if (!preview && viewer.userId) {
+    const memberships = await store.listMemberships(workspace.id)
+    if (memberships.some((membership) => membership.userId === viewer.userId)) preview = "member"
+  }
+
   // First open by the client: record the view.
-  if (!invoice.viewedAt && (invoice.status === "sent" || invoice.status === "overdue")) {
+  if (!preview && !invoice.viewedAt && (invoice.status === "sent" || invoice.status === "overdue")) {
     const viewedAt = nowISO()
     invoice = {
       ...invoice,
@@ -484,7 +506,7 @@ export async function openPublicInvoice(
       invoiceId: invoice.id,
     })
   }
-  return { invoice: price(invoice), client, workspace }
+  return { invoice: price(invoice), client, workspace, preview }
 }
 
 export async function recordPayment(token: string, amountCents?: number): Promise<PricedInvoice> {
@@ -836,8 +858,9 @@ export async function createOrUpdateInvoice(
   }
 
   const rights = entitlements(workspace, today())
+  const existingInvoices = await store.listInvoices(workspace.id)
   if (rights.invoiceLimit !== null) {
-    const used = createdThisMonth(await store.listInvoices(workspace.id))
+    const used = createdThisMonth(existingInvoices)
     if (used >= rights.invoiceLimit) {
       throw new ActionError(
         `${rights.label} includes ${rights.invoiceLimit} invoices a month. Upgrade to Pro for more.`,
@@ -845,11 +868,16 @@ export async function createOrUpdateInvoice(
       )
     }
   }
+  // Numbers are unique per workspace (see the migration). Changing the prefix
+  // back to an earlier one must not reuse a number, so skip any that exist.
+  const taken = new Set(existingInvoices.map((item) => item.number))
+  let sequence = workspace.nextNumber
+  while (taken.has(`${workspace.invoicePrefix}-${sequence}`)) sequence += 1
   const invoice: Invoice = {
     id: crypto.randomUUID(),
     workspaceId: workspace.id,
     clientId: draft.clientId,
-    number: `${workspace.invoicePrefix}-${workspace.nextNumber}`,
+    number: `${workspace.invoicePrefix}-${sequence}`,
     status: "draft",
     issueDate: draft.issueDate,
     dueDate: draft.dueDate,
@@ -864,7 +892,7 @@ export async function createOrUpdateInvoice(
     createdAt: updatedAt,
     updatedAt,
   }
-  await store.updateWorkspace({ ...workspace, nextNumber: workspace.nextNumber + 1 })
+  await store.updateWorkspace({ ...workspace, nextNumber: sequence + 1 })
   await store.insertInvoice(invoice)
   return invoice
 }

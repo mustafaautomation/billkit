@@ -5,7 +5,8 @@ import { isSupabaseConfigured } from "@/lib/env"
 import { memoryStore } from "@/lib/data/memory-store"
 import type { Store } from "@/lib/data/store"
 
-async function demoRequest() {
+/** True when the request comes from the read-only /demo surface (header or referer). */
+export async function isDemoRequest() {
   try {
     const headerList = await headers()
     if (headerList.get("x-billkit-surface") === "demo") return true
@@ -17,7 +18,7 @@ async function demoRequest() {
 }
 
 export async function getStore(): Promise<Store> {
-  if (await demoRequest()) return memoryStore
+  if (await isDemoRequest()) return memoryStore
   if (isSupabaseConfigured()) {
     const { createSupabaseStore } = await import("@/lib/data/supabase-store")
     return createSupabaseStore()

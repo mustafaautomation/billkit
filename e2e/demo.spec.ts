@@ -24,6 +24,14 @@ test("public demo is readable and cannot mutate", async ({ page }) => {
   await expect(page.getByText("Harbor & Co")).toBeVisible()
 })
 
+test("demo payment page is a preview and cannot take a payment", async ({ page }) => {
+  await page.goto("/demo/invoices/d0000001-0000-4000-8000-000000000002")
+  await page.getByRole("link", { name: "Open payment page" }).click()
+  await expect(page.getByRole("heading", { name: "NW-1043" })).toBeVisible()
+  await expect(page.getByText(/Read-only demo\. This is what the client sees/)).toBeVisible()
+  await expect(page.getByRole("button", { name: "Confirm test payment" })).toHaveCount(0)
+})
+
 test("marketing page and demo nav work on a phone", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto("/")

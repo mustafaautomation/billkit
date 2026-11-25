@@ -37,7 +37,7 @@ Open [http://127.0.0.1:3847](http://127.0.0.1:3847). No `.env` file is required.
 | --- | --- |
 | `npm run dev` | Dev server on port 3847 |
 | `npm run build` && `npm start` | Production server |
-| `npm test` | Unit tests for money, status, aging, and plans |
+| `npm test` | Unit tests for money, status, aging, plans, and service rules (payment-page views, numbering, demo writes) |
 | `npm run test:e2e` | Playwright: auth, send, pay, overdue, demo, isolation |
 | `npm run typecheck` | `next typegen && tsc --noEmit` |
 | `npm run lint` | ESLint |

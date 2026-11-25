@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test"
 
+// E2E_PORT lets a second checkout run the suite without clashing with a dev server on 3847.
+const port = Number(process.env.E2E_PORT ?? 3847)
+
 export default defineConfig({
   testDir: "e2e",
   fullyParallel: false,
@@ -8,13 +11,13 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 10_000 },
   use: {
-    baseURL: "http://127.0.0.1:3847",
+    baseURL: `http://127.0.0.1:${port}`,
     trace: "on-first-retry",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "npm run build && npm run start -- -p 3847",
-    url: "http://127.0.0.1:3847",
+    command: `npm run build && npm run start -- -p ${port}`,
+    url: `http://127.0.0.1:${port}`,
     reuseExistingServer: !process.env.CI,
     timeout: 240_000,
     env: {
